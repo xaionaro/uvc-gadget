@@ -182,13 +182,18 @@ static const struct uvc_frame_info uvc_frames[] = {
     {480, 640, {333333, 0}},
     {1280, 720, {333333, 0}},
     {1920, 1080, {333333, 0}},
-    {2160, 3840, {333333, 0}},
     {0, 0, {0}}
 };
 
+#ifdef H265_SUPPORT
+#define FRAMEBASED_FMT V4L2_PIX_FMT_HEVC
+#else
+#define FRAMEBASED_FMT V4L2_PIX_FMT_H264
+#endif
+
 static const struct uvc_format_info uvc_formats[] = {
     {V4L2_PIX_FMT_YUYV, uvc_frames},
-    {V4L2_PIX_FMT_H264, uvc_frames},
+    {FRAMEBASED_FMT, uvc_frames},
     {V4L2_PIX_FMT_MJPEG, uvc_frames}
 };
 
@@ -840,7 +845,7 @@ static int uvc_video_set_format(struct uvc_device *dev)
     fmt.fmt.pix.height = dev->height;
     fmt.fmt.pix.pixelformat = dev->fcc;
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
-	if (dev->fcc == V4L2_PIX_FMT_MJPEG || dev->fcc == V4L2_PIX_FMT_H264)
+	if (dev->fcc == V4L2_PIX_FMT_MJPEG || dev->fcc == FRAMEBASED_FMT)
     {
         assert(dev->width);
         assert(dev->height);
@@ -1023,7 +1028,7 @@ static void uvc_video_fill_buffer(struct uvc_device *dev, struct v4l2_buffer *bu
         break;
 
     case V4L2_PIX_FMT_MJPEG:
-    case V4L2_PIX_FMT_H264:
+    case FRAMEBASED_FMT:
         {
             assert((int)dev->mem[buf->index].length > size);
             pts_to_v4l2_timestamp(dev, buf);
@@ -1417,7 +1422,7 @@ static int uvc_video_reqbufs_userptr(struct uvc_device *dev, int nbufs)
             payload_size = dev->width * dev->height * 2;
             break;
         case V4L2_PIX_FMT_MJPEG:
-		case V4L2_PIX_FMT_H264:
+		case FRAMEBASED_FMT:
             {
 				assert(dev->width);
 				assert(dev->height);
@@ -1575,7 +1580,7 @@ uvc_fill_streaming_control(struct uvc_device *dev, struct uvc_streaming_control 
         ctrl->dwMaxVideoFrameSize = frame->width * frame->height * 2;
         break;
     case V4L2_PIX_FMT_MJPEG:
-    case V4L2_PIX_FMT_H264:
+    case FRAMEBASED_FMT:
         {
             ctrl->dwMaxVideoFrameSize = frame->width * frame->height;
             TRACE("dwMaxVideoFrameSize: %d", ctrl->dwMaxVideoFrameSize);
@@ -2100,7 +2105,7 @@ static int uvc_events_process_data(struct uvc_device *dev, struct uvc_request_da
         target->dwMaxVideoFrameSize = frame->width * frame->height * 2;
         break;
     case V4L2_PIX_FMT_MJPEG:
-    case V4L2_PIX_FMT_H264:
+    case FRAMEBASED_FMT:
         {
 			assert(dev->width);
 			assert(dev->height);
@@ -2227,7 +2232,7 @@ static void uvc_events_init(struct uvc_device *dev)
         payload_size = dev->width * dev->height * 2;
         break;
     case V4L2_PIX_FMT_MJPEG:
-    case V4L2_PIX_FMT_H264:
+    case FRAMEBASED_FMT:
         {
             assert(dev->av_packet);
             payload_size = dev->av_packet->size;
@@ -2357,7 +2362,7 @@ static void usage(const char *argv0)
     fprintf(stderr,
             " -f <format>    Select frame format\n\t"
             "0 = V4L2_PIX_FMT_YUYV\n\t"
-            "1 = V4L2_PIX_FMT_H264\n\t"
+            "1 = FRAMEBASED_FMT\n\t"
             "2 = V4L2_PIX_FMT_MJPEG\n");
     fprintf(stderr, " -h		Print this help screen and exit\n");
     fprintf(stderr, " -i image	MJPEG image\n");
@@ -2422,7 +2427,7 @@ int main(int argc, char *argv[])
 
                 if(0 == default_format) format = V4L2_PIX_FMT_YUYV;
                 else if(1 == default_format) format = V4L2_PIX_FMT_MJPEG;
-                else if(2 == default_format) format = V4L2_PIX_FMT_H264;
+                else if(2 == default_format) format = FRAMEBASED_FMT;
                 else {
                     usage(argv[0]);
                     return 1;

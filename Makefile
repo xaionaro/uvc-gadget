@@ -6,7 +6,7 @@ LIBAV=`pkg-config --libs libavformat libavutil libavcodec`
 
 CC		:= $(CROSS_COMPILE)gcc
 KERNEL_INCLUDE	:= -I$(KERNEL_DIR)/include -I$(KERNEL_DIR)/arch/$(ARCH)/include
-CFLAGS		:= -std=gnu99 -Wall -Wextra -g $(KERNEL_INCLUDE) -O2
+CFLAGS		:= -std=gnu99 -Wall -Wextra -g $(KERNEL_INCLUDE) -O2 -DH265_SUPPORT
 LDFLAGS		:= -g $(LIBAV)
 
 all: uvc-gadget
