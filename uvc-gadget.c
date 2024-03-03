@@ -2,6 +2,7 @@
  * UVC gadget test application
  *
  * Copyright (C) 2010 Ideas on board SPRL <laurent.pinchart@ideasonboard.com>
+ * Copyright (C) 2024 Dmitrii Okunev <xaionaro@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -193,6 +194,7 @@ static const struct uvc_frame_info uvc_frames[] = {
 
 static const struct uvc_format_info uvc_formats[] = {
     {V4L2_PIX_FMT_YUYV, uvc_frames},
+    {V4L2_PIX_FMT_YUV420, uvc_frames},
     {FRAMEBASED_FMT, uvc_frames},
     {V4L2_PIX_FMT_MJPEG, uvc_frames}
 };
@@ -587,6 +589,8 @@ static int v4l2_process_data(struct v4l2_device *dev)
                 "Host, seen during VIDIOC_QBUF");
             return 0;
         } else {
+            TRACE(
+                "UVC: Got error: %d (%s)", errno, strerror(errno));
             return ret;
         }
     }
@@ -1027,6 +1031,15 @@ static void uvc_video_fill_buffer(struct uvc_device *dev, struct v4l2_buffer *bu
         buf->bytesused = bpl * dev->height;
         break;
 
+    case V4L2_PIX_FMT_YUV420:
+        /* Fill the buffer with video data. */
+        bpl = dev->width * 3 / 2;
+        for (i = 0; i < dev->height; ++i)
+            memset(dev->mem[buf->index].start + i * bpl, dev->color++, bpl);
+
+        buf->bytesused = bpl * dev->height;
+        break;
+
     case V4L2_PIX_FMT_MJPEG:
     case FRAMEBASED_FMT:
         {
@@ -1421,6 +1434,10 @@ static int uvc_video_reqbufs_userptr(struct uvc_device *dev, int nbufs)
             bpl = dev->width * 2;
             payload_size = dev->width * dev->height * 2;
             break;
+        case V4L2_PIX_FMT_YUV420:
+            bpl = dev->width * 3 / 2;
+            payload_size = dev->width * dev->height * 3 / 2;
+            break;
         case V4L2_PIX_FMT_MJPEG:
 		case FRAMEBASED_FMT:
             {
@@ -1444,7 +1461,7 @@ static int uvc_video_reqbufs_userptr(struct uvc_device *dev, int nbufs)
                 goto err;
             }
 
-            if (V4L2_PIX_FMT_YUYV == dev->fcc)
+            if ((V4L2_PIX_FMT_YUYV == dev->fcc) || (V4L2_PIX_FMT_YUV420 == dev->fcc))
             {
                 for (j = 0; j < dev->height; ++j)
                 {
@@ -1578,6 +1595,9 @@ uvc_fill_streaming_control(struct uvc_device *dev, struct uvc_streaming_control 
     switch (format->fcc) {
     case V4L2_PIX_FMT_YUYV:
         ctrl->dwMaxVideoFrameSize = frame->width * frame->height * 2;
+        break;
+    case V4L2_PIX_FMT_YUV420:
+        ctrl->dwMaxVideoFrameSize = frame->width * frame->height * 3 / 2;
         break;
     case V4L2_PIX_FMT_MJPEG:
     case FRAMEBASED_FMT:
@@ -2104,6 +2124,9 @@ static int uvc_events_process_data(struct uvc_device *dev, struct uvc_request_da
     case V4L2_PIX_FMT_YUYV:
         target->dwMaxVideoFrameSize = frame->width * frame->height * 2;
         break;
+    case V4L2_PIX_FMT_YUV420:
+        target->dwMaxVideoFrameSize = frame->width * frame->height * 3 / 2;
+        break;
     case V4L2_PIX_FMT_MJPEG:
     case FRAMEBASED_FMT:
         {
@@ -2230,6 +2253,9 @@ static void uvc_events_init(struct uvc_device *dev)
     switch (dev->fcc) {
     case V4L2_PIX_FMT_YUYV:
         payload_size = dev->width * dev->height * 2;
+        break;
+    case V4L2_PIX_FMT_YUV420:
+        payload_size = dev->width * dev->height * 3 / 2;
         break;
     case V4L2_PIX_FMT_MJPEG:
     case FRAMEBASED_FMT:
@@ -2362,8 +2388,9 @@ static void usage(const char *argv0)
     fprintf(stderr,
             " -f <format>    Select frame format\n\t"
             "0 = V4L2_PIX_FMT_YUYV\n\t"
-            "1 = FRAMEBASED_FMT\n\t"
-            "2 = V4L2_PIX_FMT_MJPEG\n");
+            "1 = V4L2_PIX_FMT_YUV420 (YU12) [DOES NOT WORK!]\n\t"
+            "2 = FRAMEBASED_FMT\n\t"
+            "3 = V4L2_PIX_FMT_MJPEG\n");
     fprintf(stderr, " -h		Print this help screen and exit\n");
     fprintf(stderr, " -i image	MJPEG image\n");
     fprintf(stderr, " -m		Streaming mult for ISOC (b/w 0 and 2)\n");
@@ -2372,10 +2399,6 @@ static void usage(const char *argv0)
             " -o <IO method> Select UVC IO method:\n\t"
             "0 = MMAP\n\t"
             "1 = USER_PTR\n");
-    fprintf(stderr,
-            " -r <resolution> Select frame resolution:\n\t"
-            "0 = 360p, VGA (640x360)\n\t"
-            "1 = 720p, WXGA (1280x720)\n");
     fprintf(stderr,
             " -s <speed>	Select USB bus speed (b/w 0 and 2)\n\t"
             "0 = Full Speed (FS)\n\t"
@@ -2426,8 +2449,9 @@ int main(int argc, char *argv[])
                 int default_format = atoi(optarg);
 
                 if(0 == default_format) format = V4L2_PIX_FMT_YUYV;
-                else if(1 == default_format) format = V4L2_PIX_FMT_MJPEG;
-                else if(2 == default_format) format = FRAMEBASED_FMT;
+                else if(1 == default_format) format = V4L2_PIX_FMT_YUV420;
+                else if(2 == default_format) format = V4L2_PIX_FMT_MJPEG;
+                else if(3 == default_format) format = FRAMEBASED_FMT;
                 else {
                     usage(argv[0]);
                     return 1;
@@ -2533,10 +2557,17 @@ int main(int argc, char *argv[])
         fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         fmt.fmt.pix.width = width;
         fmt.fmt.pix.height = height;
-        fmt.fmt.pix.sizeimage =
-				V4L2_PIX_FMT_YUYV == format
-				? (fmt.fmt.pix.width * fmt.fmt.pix.height * 2)
-				: (fmt.fmt.pix.width * fmt.fmt.pix.height);
+        switch (format) {
+        case V4L2_PIX_FMT_YUYV:
+            fmt.fmt.pix.sizeimage = fmt.fmt.pix.width * fmt.fmt.pix.height * 2;
+            break;
+        case V4L2_PIX_FMT_YUV420:
+            fmt.fmt.pix.sizeimage = fmt.fmt.pix.width * fmt.fmt.pix.height * 3 / 2;
+            break;
+        default:
+            fmt.fmt.pix.sizeimage = fmt.fmt.pix.width * fmt.fmt.pix.height;
+            break;
+        }
 
         fmt.fmt.pix.pixelformat = format;
         fmt.fmt.pix.field = V4L2_FIELD_ANY;
