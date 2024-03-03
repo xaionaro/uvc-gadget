@@ -159,6 +159,43 @@ create_uvc() {
 	ln -s functions/$FUNCTION configs/c.1
 }
 
+create_acm() {
+	CONFIG=$1
+	FUNCTION=$2
+	mkdir -p functions/"$FUNCTION"
+	ln -s functions/"$FUNCTION" "$CONFIG"/
+}
+
+create_uac2() {
+	CONFIG=$1
+	FUNCTION=$2
+	mkdir -p functions/"$FUNCTION"
+	ln -s functions/"$FUNCTION" "$CONFIG"/
+}
+
+create_ecm() {
+	CONFIG=$1
+	FUNCTION=$2
+	# Add functions here
+	mkdir -p functions/"$FUNCTION"
+	HOST="CE:51:F8:E5:B2:37" # "HostPC"
+	SELF="C5:C0:F1:AE:8E:99"
+	echo $HOST > functions/"$FUNCTION"/host_addr
+	echo $SELF > functions/"$FUNCTION"/dev_addr
+	ln -s functions/"$FUNCTION" "$CONFIG"/
+}
+
+create_hid() {
+	CONFIG=$1
+	FUNCTION=$2
+	mkdir -p functions/"$FUNCTION"
+	echo 1 > functions/"$FUNCTION"/protocol
+	echo 1 > functions/"$FUNCTION"/subclass
+	echo 8 > functions/"$FUNCTION"/report_length
+	echo -ne \\x05\\x01\\x09\\x06\\xa1\\x01\\x05\\x07\\x19\\xe0\\x29\\xe7\\x15\\x00\\x25\\x01\\x75\\x01\\x95\\x08\\x81\\x02\\x95\\x01\\x75\\x08\\x81\\x03\\x95\\x05\\x75\\x01\\x05\\x08\\x19\\x01\\x29\\x05\\x91\\x02\\x95\\x01\\x75\\x03\\x91\\x03\\x95\\x06\\x75\\x08\\x15\\x00\\x25\\x65\\x05\\x07\\x19\\x00\\x29\\x65\\x81\\x00\\xc0 > functions/"$FUNCTION"/report_desc
+	ln -s functions/"$FUNCTION" "$CONFIG"/
+}
+
 delete_uvc() {
 	# Example usage:
 	#	delete_uvc <target config> <function name>
@@ -215,6 +252,10 @@ case "$1" in
 	echo "Creating functions..."
 	#create_msd configs/c.1 mass_storage.0 $USBFILE
 	create_uvc configs/c.1 uvc.0
+	create_uac2 configs/c.1 uac2.0
+	#create_acm configs/c.1 acm.0
+	#create_ecm configs/c.1 ecm.0
+	#create_hid configs/c.1 hid.0
 	#create_uvc configs/c.1 uvc.1
 	echo "OK"
 
